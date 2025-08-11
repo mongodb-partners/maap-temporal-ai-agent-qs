@@ -52,9 +52,9 @@ async def main() -> None:
     
     try:
         result = await handle.result()
-        print(f"✓ Transfer success: {result}")
+        print(f"Transfer success: {result}")
     except Exception as e:
-        print(f"✗ Transfer failure: {e}")
+        print(f"Transfer failure: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

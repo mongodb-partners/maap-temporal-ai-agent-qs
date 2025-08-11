@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-# Task queue name used by both the worker and starter
+# Task Queue name used by both the Worker and starter
 MONEY_TRANSFER_TASK_QUEUE_NAME = "money-transfer-task-queue"
 
 @dataclass
