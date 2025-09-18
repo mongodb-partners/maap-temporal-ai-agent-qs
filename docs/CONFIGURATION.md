@@ -156,7 +156,7 @@ cp .env.example .env
 | `NOTIFICATION_RECIPIENTS` | Comma-separated emails | - | ❌ | `admin@example.com,manager@example.com` |
 | `SLACK_WEBHOOK_URL` | Slack webhook for alerts | - | ❌ | `https://hooks.slack.com/...` |
 
-*Required if `ENABLE_NOTIFICATIONS=true`
+*Required if `ENABLE_NOTIFICATIONS=true` (Note: This feature is mentioned as an example and is not part of the PoV.)
 
 ### Performance Tuning
 
