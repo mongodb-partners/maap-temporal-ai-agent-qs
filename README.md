@@ -1,0 +1,344 @@
+# AI-Powered Transaction Processing System – Proof of Value
+
+Enterprise-grade financial fraud detection system that combines MongoDB Atlas vector search, Temporal workflows, and AWS Bedrock AI to demonstrate real-time transaction analysis and intelligent fraud detection capabilities.
+
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![License](https://img.shields.io/badge/license-Apache%202.0-blue)
+
+## Quick Start
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/mongodb-partners/maap-temporal-ai-agent-qs.git
+cd maap-temporal-ai-agent-qs
+
+# 2. Configure environment (minimal setup)
+cp .env.example .env
+# Edit .env with your MongoDB Atlas URI and AWS credentials
+
+# 3. Run quick setup (creates venv, installs deps, starts Temporal on Docker and launch the app)
+./scripts/quick_setup.sh
+
+# or Run docker setup (Deploy everthing on Docker and launch the app)
+./scripts/docker_setup.sh
+```
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Business Value & Use Cases](#business-value--use-cases)
+- [Architecture](#architecture)
+- [Installation & Configuration](#installation--configuration)
+- [Usage](#usage)
+- [Evaluation Guide](#evaluation-guide)
+- [Troubleshooting](#troubleshooting)
+- [Next Steps](#next-steps)
+- [License](#license)
+
+## Overview
+
+**What It Does:** Processes financial transactions through an AI-powered decision pipeline that combines rule-based evaluation, vector similarity search, and advanced fraud detection to provide real-time approve/reject decisions with detailed reasoning.
+
+**Business Value:**
+- ✅ **Advanced fraud detection** through hybrid AI + vector search approach
+- ✅ **Reduced operational costs** via automated transaction processing
+- ✅ **Fast decision processing** with asynchronous workflows
+- ✅ **Decreased manual review workload** through AI-assisted decisions
+- ✅ **Complete audit trails** with explainable AI reasoning
+
+**PoV Scope Limitations:**
+- Mock data for demonstration (no real financial data)
+- Single-region deployment (production would be multi-region)
+- Performance not optimized for high throughput
+- Basic notification system
+- Simplified compliance checks (production requires full KYC/AML)
+
+## Business Value & Use Cases
+
+### Primary Scenarios Demonstrated
+
+1. **Fraud Ring Detection** - Identifies coordinated criminal networks through graph traversal
+2. **Real-time Risk Scoring** - AI-powered analysis with confidence scoring
+3. **Automated Compliance** - Sanctions screening and regulatory checks
+4. **Human-in-the-Loop** - Escalation workflows for complex cases
+5. **Cost Optimization** - Reduces manual review while maintaining accuracy
+
+### Expected Measurable Outcomes (KPIs)
+
+| Metric | Description | PoV Demonstrates |
+|--------|-------------|------------------|
+| Detection Capability | AI-powered analysis | Multi-factor risk assessment |
+| Processing Speed | Workflow execution time | Asynchronous processing |
+| Auto-Approval | Transactions approved without manual review | Confidence-based decisions |
+| Manual Review | Human-in-the-loop capability | Queue management system |
+| Audit Trail | Decision tracking | Complete workflow history |
+
+### Enterprise Alignment
+
+- **MongoDB Atlas Integration:** Demonstrates vector search, ACID transactions, and aggregation pipelines
+- **AI Workflow Orchestration:** Shows Temporal's reliability for mission-critical processes
+- **Cloud-Native Architecture:** Ready for AWS/Azure/GCP deployment
+- **Regulatory Compliance:** Built-in audit trails and explainability
+
+## Architecture
+
+### High-Level System Flow
+
+```mermaid
+graph LR
+    A[Transaction API] --> B[Temporal Workflow]
+    B --> C[MongoDB Atlas]
+    B --> D[AWS Bedrock AI]
+    C --> E[Vector Search]
+    C --> F[Graph Analysis]
+    D --> G[Fraud Detection]
+    G --> H{Decision}
+    H -->|Approved| I[Process Transaction]
+    H -->|Review| J[Human Queue]
+    H -->|Rejected| K[Block & Alert]
+    J --> L[Dashboard UI]
+```
+
+### Key Components (PoV Scope)
+
+- **FastAPI Backend** - REST API for transaction submission
+- **Temporal Worker** - Durable workflow execution engine
+- **MongoDB Atlas** - Document store with vector search capabilities
+- **AWS Bedrock** - Claude for analysis, Cohere for embeddings
+- **Streamlit Dashboard** - Real-time monitoring and review interface
+
+### Integration Points
+
+- MongoDB Atlas with 1024-dimensional vector indexes
+- Temporal for workflow orchestration and retry logic
+- AWS Bedrock API for AI inference
+- RESTful APIs for external system integration
+
+For detailed architecture documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Installation & Configuration
+
+### Prerequisites
+
+- Python 3.11+
+- Docker & Docker Compose
+- MongoDB Atlas account (free tier works)
+- AWS account with Bedrock access
+- 8GB RAM minimum
+
+### Quick Setup (Docker)
+
+```bash
+# Start all services with Docker Compose
+docker-compose up -d
+
+# Verify services are running
+docker ps
+curl http://localhost:8000/health
+```
+
+### Local Development Setup
+
+```bash
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start Temporal (required)
+cd docker-compose && docker-compose up -d && cd ..
+
+# Initialize MongoDB
+python -m scripts.setup_mongodb
+
+# Start services (3 terminals needed)
+python -m temporal.run_worker     # Terminal 1: Worker
+uvicorn api.main:app --reload     # Terminal 2: API
+streamlit run app.py               # Terminal 3: Dashboard
+```
+
+### Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `MONGODB_URI` | MongoDB Atlas connection string | - | ✅ |
+| `AWS_ACCESS_KEY_ID` | AWS credentials for Bedrock | - | ✅ |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key | - | ✅ |
+| `CONFIDENCE_THRESHOLD_APPROVE` | Min confidence for auto-approval | 85 | ❌ |
+| `AUTO_APPROVAL_LIMIT` | Max amount for auto-approval | 50000 | ❌ |
+| `TEMPORAL_HOST` | Temporal server address | localhost:7233 | ❌ |
+
+For complete configuration options, see [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+
+## Usage
+
+### Dashboard Interface
+
+The system includes a comprehensive Streamlit dashboard for monitoring and managing transactions:
+
+![Dashboard Overview](docs/images/ui-dashboard-main.png)
+
+**Key Features:**
+- 📊 **Real-time Metrics** - Monitor transaction volume, processing time, and AI confidence
+- 🔍 **Hybrid Search Demo** - Visualize how different search methods work together
+- 🚀 **Scenario Launcher** - Run pre-configured fraud detection scenarios
+- 👥 **Human Review Queue** - Manage transactions requiring manual review
+- ⚙️ **Active Workflows** - Track processing status in real-time
+
+For detailed UI instructions, see the [UI Usage Guide](docs/UI_GUIDE.md).
+
+### Basic Transaction Submission
+
+```bash
+# Submit a test transaction
+curl -X POST http://localhost:8000/api/transactions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "TXN-001",
+    "amount": 5000,
+    "currency": "USD",
+    "type": "wire_transfer",
+    "source_account": "ACC-12345",
+    "destination_account": "ACC-67890",
+    "description": "Invoice payment"
+  }'
+```
+
+### Demo Walkthrough: Fraud Detection
+
+#### Step 1: Launch Scenario
+Use the Scenario Launcher in the left sidebar to run pre-configured test cases:
+
+![Active Workflows](docs/images/ui-active-workflows.png)
+
+Select "Fraud Ring Detection" and click "Run Scenario" to submit suspicious transactions.
+
+#### Step 2: View Results
+Monitor the scenario execution and see AI decisions:
+
+![Scenario Results](docs/images/ui-scenario-results.png)
+
+The system detects structuring patterns and escalates transactions for review.
+
+#### Step 3: Human Review
+Review escalated transactions with AI recommendations:
+
+![Human Review](docs/images/ui-human-review-detail.png)
+
+Make informed decisions based on AI analysis and transaction details.
+
+### Demo Scenario: High-Value Transaction
+
+```bash
+# Submit high-value transaction requiring manager approval
+python -m scripts.advanced_scenarios
+
+# Monitor in dashboard: http://localhost:8501
+# Transaction will appear in "Pending Manager Approval" queue
+```
+
+### Monitoring Workflow Execution
+
+1. **Streamlit Dashboard:** http://localhost:8501
+   - Real-time transaction status
+   - Decision distribution charts
+   - Human review queue
+   - Performance metrics
+
+2. **Temporal UI:** http://localhost:8080
+   - Workflow execution history
+   - Activity retry details
+   - Signal/query interface
+
+3. **API Documentation:** http://localhost:8000/docs
+   - Interactive API testing
+   - Schema definitions
+   - Response examples
+
+## Evaluation Guide
+
+### Core Flows to Test
+
+1. **Automated Approval Path**
+   - Submit low-risk transaction (<$5000, domestic)
+   - Verify immediate approval
+   - Check audit trail creation
+
+2. **Fraud Detection**
+   - Run velocity check scenario
+   - Observe AI reasoning in dashboard
+   - Validate similar transaction matching
+
+3. **Human Review Workflow**
+   - Submit medium-confidence transaction
+   - Review in dashboard queue
+   - Approve/reject with comments
+
+4. **System Resilience**
+   - Kill Temporal worker mid-transaction
+   - Restart worker
+   - Verify transaction completes successfully
+
+### Success Metrics Checklist
+
+- [ ] Test transactions processed successfully
+- [ ] Fraud scenarios correctly identified (8/10 minimum)
+- [ ] Human review queue updates in real-time
+- [ ] Audit trail captures all decisions
+- [ ] Vector search returns relevant similar transactions
+- [ ] Manager escalation triggers for >$50K transactions
+
+For detailed evaluation procedures, see [docs/EVALUATION_GUIDE.md](docs/EVALUATION_GUIDE.md).
+
+## Troubleshooting
+
+### Common Issues
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| MongoDB connection failed | Invalid URI or network issue | Verify Atlas URI, check IP whitelist |
+| Bedrock timeout errors | Missing AWS credentials | Ensure AWS keys are in .env file |
+| Worker not processing | Temporal not running | Run `docker-compose up -d` in docker-compose/ |
+| Dashboard blank | API not accessible | Check API is running on port 8000 |
+| Vector search no results | Missing index | Run `python -m scripts.setup_mongodb` |
+
+For detailed troubleshooting, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
+## Next Steps
+
+### If PoV is Successful
+
+**Scaling Considerations:**
+- Deploy to Kubernetes for auto-scaling
+- Implement multi-region MongoDB Atlas clusters
+- Add Redis caching layer for performance
+- Configure CDN for dashboard assets
+
+**Security Hardening:**
+- Enable MongoDB encryption at rest
+- Implement OAuth2/SAML authentication
+- Add rate limiting and DDoS protection
+- Configure AWS PrivateLink for Bedrock
+
+**CI/CD Pipeline:**
+- GitHub Actions for automated testing
+- Docker image registry with vulnerability scanning
+- Blue-green deployment strategy
+- Automated performance regression testing
+
+**Production Monitoring:**
+- DataDog/New Relic APM integration
+- Custom CloudWatch metrics and alarms
+- PagerDuty incident management
+- Grafana dashboards for business KPIs
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+---
+
+**Questions?** Contact the Solution Architecture team or open an issue in this repository.
+
+**Ready to evaluate?** Start with the [Quick Start](#quick-start) section above.

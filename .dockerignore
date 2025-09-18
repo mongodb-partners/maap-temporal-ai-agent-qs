@@ -49,8 +49,7 @@ logs/
 .gitignore
 
 # Docker
-Dockerfile
-docker-compose.yml
+docker-compose/
 .dockerignore
 
 # Documentation

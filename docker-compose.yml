@@ -1,0 +1,66 @@
+services:
+  # Temporal Worker
+  temporal-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python -m temporal.run_worker
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    networks:
+      - temporal-network
+    restart: unless-stopped
+
+  # FastAPI Backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    volumes:
+      - ./api:/app/api
+      - ./services:/app/services
+      - ./utils:/app/utils
+      - ./ai:/app/ai
+      - ./database:/app/database
+      - ./temporal:/app/temporal
+    networks:
+      - temporal-network
+    restart: unless-stopped
+
+  # Streamlit Dashboard
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    volumes:
+      - ./app.py:/app/app.py
+      - ./services:/app/services
+      - ./utils:/app/utils
+      - ./database:/app/database
+    depends_on:
+      - api
+    networks:
+      - temporal-network
+    restart: unless-stopped
+
+networks:
+  temporal-network:
+    driver: bridge
+    name: temporal-network
+    external: true

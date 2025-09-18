@@ -210,3 +210,11 @@ __marimo__/
 .DS_Store
 # macOS Finder specific file that stores custom attributes of a folder, such as icon position.
 # It is generally safe to ignore this file as it does not affect the functionality of the project
+
+# Project-specific ignores
+docker-compose/
+test_*.py
+check_*.py
+*.log
+*.pid
+.streamlit/
