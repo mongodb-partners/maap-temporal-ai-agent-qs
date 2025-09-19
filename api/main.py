@@ -228,7 +228,7 @@ async def get_metrics():
         logger.error(f"Error getting metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/health")
+@app.get("/health")
 async def health_check():
     """Health check endpoint."""
     return {

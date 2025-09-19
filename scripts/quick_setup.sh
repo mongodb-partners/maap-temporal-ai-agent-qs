@@ -137,7 +137,7 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
     TEMPORAL_READY=false
 
     # Check each service
-    if curl -s http://localhost:8000/api/health >/dev/null 2>&1; then
+    if curl -s http://localhost:8000/health >/dev/null 2>&1; then
         API_READY=true
     fi
 
