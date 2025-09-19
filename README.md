@@ -312,7 +312,7 @@ For detailed troubleshooting, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING
 **Scaling Considerations:**
 - Deploy to Kubernetes for auto-scaling
 - Implement multi-region MongoDB Atlas clusters
-- Add Redis caching layer for performance
+- Add a caching layer for performance
 - Configure CDN for dashboard assets
 
 **Security Hardening:**

@@ -312,7 +312,7 @@ Provide:
    - MongoDB Atlas auto-scaling clusters
 
 2. **Caching Layer:**
-   - Redis for customer profile caching
+   - Use a Caching layer for customer profile caching
    - Embedding cache for frequent queries
    - Decision cache for idempotency
 
