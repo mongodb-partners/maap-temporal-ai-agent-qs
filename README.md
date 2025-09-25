@@ -18,7 +18,7 @@ cp .env.example .env
 # 3. Run quick setup (creates venv, installs deps, starts Temporal on Docker and launch the app)
 ./scripts/quick_setup.sh
 
-# or Run docker setup (Deploy everthing on Docker and launch the app)
+# or Run docker setup (Deploy everything on Docker and launch the app)
 ./scripts/docker_setup.sh
 ```
 
@@ -192,17 +192,28 @@ For detailed UI instructions, see the [UI Usage Guide](docs/UI_GUIDE.md).
 
 ```bash
 # Submit a test transaction
-curl -X POST http://localhost:8000/api/transactions \
-  -H "Content-Type: application/json" \
+curl -X 'POST' \
+  'http://localhost:8000/api/transaction' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
   -d '{
-    "transaction_id": "TXN-001",
-    "amount": 5000,
-    "currency": "USD",
-    "type": "wire_transfer",
-    "source_account": "ACC-12345",
-    "destination_account": "ACC-67890",
-    "description": "Invoice payment"
-  }'
+  "transaction_id": "2025092400001",
+  "transaction_type": "wire_transfer",
+  "amount": 100,
+  "currency": "USD",
+  "sender": {
+    "account_number": "ACC-12345",
+    "country": "US",
+    "name": "Sam Eagleton"
+  },
+  "recipient": {
+    "account_number": "ACC-67890",
+    "country": "UK",
+    "name": "Nigel Wadsworth"
+  },
+  "risk_flags": [],
+  "reference_number": "95027064"
+}'
 ```
 
 ### Demo Walkthrough: Fraud Detection
