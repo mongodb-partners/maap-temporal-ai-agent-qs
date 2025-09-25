@@ -353,3 +353,15 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 **Questions?** Contact the Solution Architecture team or open an issue in this repository.
 
 **Ready to evaluate?** Start with the [Quick Start](#quick-start) section above.
+
+>**Note:** This repository contains a reference implementation intended for educational and exploratory purposes only. It is **not production-ready** in its current form.
+>
+> While the architecture and design patterns demonstrated here reflect best practices for building AI-Powered Transaction Processing System, the implementation may lack:
+>
+> * Comprehensive test coverage
+> * Robust error handling and validation
+> * Security hardening and access controls
+> * Performance optimizations for scale
+> * Long-term support or upgrade guarantees
+>
+> **Use this as a foundation** to guide your own production implementations, but ensure thorough validation and customization before deploying in real-world environments.
