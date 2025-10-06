@@ -2,8 +2,10 @@
 
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta, timezone
-from bson import ObjectId
+from bson import ObjectId, Decimal128
+from decimal import Decimal
 from database.connection import get_sync_db, db
+from utils.decimal_utils import to_decimal128, from_decimal128, decimal_to_float
 from database.schemas import (
     Transaction, TransactionDecision, AuditEvent, SystemMetric,
     Customer, Rule, HumanReview, Notification, RuleStatus, NotificationStatus
@@ -24,19 +26,23 @@ def serialize_doc(doc: Dict) -> Dict:
     if '_id' in result and isinstance(result['_id'], ObjectId):
         result['_id'] = str(result['_id'])
     
-    # Convert datetime objects to ISO format strings
+    # Convert datetime objects to ISO format strings and Decimal128 to string
     for key, value in result.items():
         if isinstance(value, datetime):
             result[key] = value.isoformat()
         elif isinstance(value, ObjectId):
             result[key] = str(value)
+        elif isinstance(value, Decimal128):
+            # Convert Decimal128 to string for JSON serialization
+            result[key] = str(value.to_decimal())
         elif isinstance(value, dict):
             result[key] = serialize_doc(value)
         elif isinstance(value, list):
             result[key] = [
-                serialize_doc(item) if isinstance(item, dict) 
+                serialize_doc(item) if isinstance(item, dict)
                 else item.isoformat() if isinstance(item, datetime)
                 else str(item) if isinstance(item, ObjectId)
+                else str(item.to_decimal()) if isinstance(item, Decimal128)
                 else item
                 for item in value
             ]
@@ -90,8 +96,8 @@ class CustomerRepository:
                 {
                     "$set": {
                         "transaction_count": transaction_count,
-                        "total_amount": total_amount,
-                        "average_transaction_amount": avg_amount,
+                        "total_amount": to_decimal128(total_amount),
+                        "average_transaction_amount": to_decimal128(avg_amount),
                         "last_transaction_date": last_transaction_date,
                         "updated_at": datetime.now(timezone.utc)
                     },
@@ -292,7 +298,9 @@ class TransactionRepository:
         ).limit(100))
         
         if transactions:
-            total_amount = sum(t.get("amount", 0) for t in transactions)
+            # Handle Decimal128 values in sum operation
+            from utils.decimal_utils import from_decimal128
+            total_amount = sum(from_decimal128(t.get("amount", 0)) for t in transactions)
             risk_incidents = sum(1 for t in transactions if t.get("status") in ["rejected", "escalated"])
             
             recipients = []

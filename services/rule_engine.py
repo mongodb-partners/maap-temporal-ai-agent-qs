@@ -19,7 +19,11 @@ class RuleEngine:
             operator = condition.get("operator", "equals")
             field = condition.get("field")
             value = condition.get("value")
-            
+
+            # Check for required fields
+            if not field:
+                return False
+
             # Navigate nested fields
             actual_value = transaction
             for part in field.split("."):
@@ -34,13 +38,33 @@ class RuleEngine:
             elif operator == "not_equals":
                 return actual_value != value
             elif operator == "greater_than":
-                return float(actual_value) > float(value)
+                if actual_value is None or value is None:
+                    return False
+                from utils.decimal_utils import from_decimal128
+                actual_float = float(from_decimal128(actual_value))
+                value_float = float(from_decimal128(value))
+                return actual_float > value_float
             elif operator == "less_than":
-                return float(actual_value) < float(value)
+                if actual_value is None or value is None:
+                    return False
+                from utils.decimal_utils import from_decimal128
+                actual_float = float(from_decimal128(actual_value))
+                value_float = float(from_decimal128(value))
+                return actual_float < value_float
             elif operator == "greater_or_equal":
-                return float(actual_value) >= float(value)
+                if actual_value is None or value is None:
+                    return False
+                from utils.decimal_utils import from_decimal128
+                actual_float = float(from_decimal128(actual_value))
+                value_float = float(from_decimal128(value))
+                return actual_float >= value_float
             elif operator == "less_or_equal":
-                return float(actual_value) <= float(value)
+                if actual_value is None or value is None:
+                    return False
+                from utils.decimal_utils import from_decimal128
+                actual_float = float(from_decimal128(actual_value))
+                value_float = float(from_decimal128(value))
+                return actual_float <= value_float
             elif operator == "in":
                 return actual_value in value
             elif operator == "not_in":

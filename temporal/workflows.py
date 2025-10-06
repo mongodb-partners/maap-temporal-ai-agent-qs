@@ -116,7 +116,9 @@ class TransactionProcessingWorkflow:
             except:
                 pass
             
-            if (transaction_details.amount > auto_approval_limit and 
+            # Convert amount to float for comparison
+            amount_value = float(transaction_details.amount) if isinstance(transaction_details.amount, str) else transaction_details.amount
+            if (amount_value > auto_approval_limit and
                 ai_result["decision"] == "approve"):
                 self.awaiting_approval = True
                 workflow.logger.info(f"Transaction {self.transaction_id} requires manager approval")

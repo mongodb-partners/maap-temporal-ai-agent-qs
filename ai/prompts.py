@@ -11,12 +11,16 @@ def create_transaction_analysis_prompt(
 ) -> str:
     """Create prompt for transaction analysis."""
     
+    # Import Decimal128 handler
+    from utils.decimal_utils import from_decimal128
+
     # Format similar cases
     similar_cases_text = ""
     if similar_cases:
         similar_cases_text = "SIMILAR HISTORICAL CASES:\n"
         for case in similar_cases[:5]:
-            similar_cases_text += f"- Amount: ${case.get('amount', 0):,.2f}, "
+            amount = float(from_decimal128(case.get('amount', 0)))
+            similar_cases_text += f"- Amount: ${amount:,.2f}, "
             similar_cases_text += f"Decision: {case.get('decision', 'unknown')}, "
             similar_cases_text += f"Risk Score: {case.get('risk_score', 0):.1f}\n"
     else:
@@ -52,7 +56,7 @@ Analyze the following transaction and provide a decision with detailed reasoning
 TRANSACTION DETAILS:
 - Transaction ID: {transaction['transaction_id']}
 - Type: {transaction['transaction_type']}
-- Amount: ${transaction['amount']:,.2f} {transaction['currency']}
+- Amount: ${float(from_decimal128(transaction['amount'])):,.2f} {transaction['currency']}
 - Sender: {transaction['sender'].get('name', 'Unknown')} (Country: {transaction['sender'].get('country', 'Unknown')})
 - Recipient: {transaction['recipient'].get('name', 'Unknown')} (Country: {transaction['recipient'].get('country', 'Unknown')})
 - Reference: {transaction.get('reference_number', 'None')}
@@ -62,8 +66,8 @@ TRANSACTION DETAILS:
 
 CUSTOMER HISTORY:
 - Total Transactions (90 days): {customer_history.get('total_transactions', 0)}
-- Average Transaction Amount: ${customer_history.get('avg_amount', 0):,.2f}
-- Total Volume: ${customer_history.get('total_amount', 0):,.2f}
+- Average Transaction Amount: ${float(from_decimal128(customer_history.get('avg_amount', 0))):,.2f}
+- Total Volume: ${float(from_decimal128(customer_history.get('total_amount', 0))):,.2f}
 - Previous Risk Incidents: {customer_history.get('risk_incidents', 0)}
 
 {similar_cases_text}
@@ -106,11 +110,14 @@ Be conservative - when in doubt, escalate for human review."""
 
 def create_risk_assessment_prompt(transaction: Dict) -> str:
     """Create prompt for risk assessment."""
-    
+
+    # Import Decimal128 handler
+    from utils.decimal_utils import from_decimal128
+
     return f"""Assess the risk level of this financial transaction:
 
 Transaction Type: {transaction['transaction_type']}
-Amount: ${transaction['amount']:,.2f}
+Amount: ${float(from_decimal128(transaction['amount'])):,.2f}
 Sender Country: {transaction['sender'].get('country', 'Unknown')}
 Recipient Country: {transaction['recipient'].get('country', 'Unknown')}
 

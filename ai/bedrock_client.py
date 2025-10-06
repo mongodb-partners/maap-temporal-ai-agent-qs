@@ -18,7 +18,7 @@ class BedrockClient:
         )
     
     async def get_embedding(self, text: str) -> List[float]:
-        """Generate embedding using Cohere via Bedrock."""
+        """Generate embedding using Cohere via Bedrock (fallback method - use embedding_client instead)."""
         try:
             response = self.client.invoke_model(
                 modelId='cohere.embed-english-v3',

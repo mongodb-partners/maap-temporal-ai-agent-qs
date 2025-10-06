@@ -8,7 +8,9 @@ import random
 import uuid
 import json
 from typing import List, Dict, Any
+from bson import Decimal128
 from utils.config import config
+from utils.decimal_utils import to_decimal128
 from database.schemas import (
     Customer, Rule, RuleStatus, Transaction, TransactionDecision,
     HumanReview, Notification, AuditEvent, SystemMetric,
@@ -384,7 +386,7 @@ async def create_test_customers() -> List[Customer]:
             country="US",
             risk_profile={
                 "risk_level": "high",
-                "kyc_status": "under_review",
+                "kyc_status": "approved",
                 "last_review_date": (datetime.now(timezone.utc) - timedelta(days=5)).isoformat(),
                 "compliance_rating": "requires_monitoring",
                 "sanctions_check": "pending"
@@ -433,7 +435,7 @@ async def create_test_customers() -> List[Customer]:
             country="US",
             risk_profile={
                 "risk_level": "very_high",
-                "kyc_status": "flagged",
+                "kyc_status": "approved",
                 "last_review_date": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
                 "compliance_rating": "high_risk",
                 "sanctions_check": "flagged"
@@ -487,15 +489,15 @@ async def create_test_accounts(customers: List[Customer]) -> List[Dict[str, Any]
                 "customer_id": customer.customer_id,
                 "customer_name": customer.legal_name,
                 "account_type": account_info["account_type"],
-                "balance": account_info["balance"],
-                "available_balance": account_info["balance"],  # Initially same as balance
+                "balance": to_decimal128(account_info["balance"]),
+                "available_balance": to_decimal128(account_info["balance"]),  # Initially same as balance
                 "currency": "USD",
                 "status": "active",
-                "daily_withdrawal_limit": 10000.0,
-                "daily_transfer_limit": 50000.0,
-                "overdraft_limit": 0.0,
-                "total_deposits": 0.0,
-                "total_withdrawals": 0.0,
+                "daily_withdrawal_limit": to_decimal128(10000.0),
+                "daily_transfer_limit": to_decimal128(50000.0),
+                "overdraft_limit": to_decimal128(0.0),
+                "total_deposits": to_decimal128(0.0),
+                "total_withdrawals": to_decimal128(0.0),
                 "transaction_count": 0,
                 "created_at": datetime.now(timezone.utc),
                 "updated_at": datetime.now(timezone.utc),
@@ -517,7 +519,7 @@ async def create_comprehensive_test_transactions(customers: List[Customer]) -> L
         txn = {
             "transaction_id": f"TXN_NORMAL_ACH_{i+1:03d}",
             "transaction_type": "ach",
-            "amount": random.uniform(1000, 10000),
+            "amount": to_decimal128(random.uniform(1000, 10000)),
             "currency": "USD",
             "sender": {
                 "name": "TechStartup Inc",
@@ -549,7 +551,7 @@ async def create_comprehensive_test_transactions(customers: List[Customer]) -> L
         txn = {
             "transaction_id": f"TXN_LARGE_WIRE_{i+1:03d}",
             "transaction_type": "wire_transfer",
-            "amount": random.uniform(60000, 100000),
+            "amount": to_decimal128(random.uniform(60000, 100000)),
             "currency": "USD",
             "sender": {
                 "name": "Manufacturing Corp",
@@ -580,19 +582,19 @@ async def create_comprehensive_test_transactions(customers: List[Customer]) -> L
     suspicious_scenarios = [
         {
             "type": "suspicious_round_amount",
-            "amount": 99999.00,
+            "amount": to_decimal128(99999.00),
             "recipient_country": "KY",
             "flags": ["suspicious_amount", "offshore_jurisdiction"]
         },
         {
             "type": "high_risk_country",
-            "amount": 50000.00,
+            "amount": to_decimal128(50000.00),
             "recipient_country": "AF",
             "flags": ["high_risk_country", "unusual_destination"]
         },
         {
             "type": "after_hours_large",
-            "amount": 75000.00,
+            "amount": to_decimal128(75000.00),
             "recipient_country": "US",
             "flags": ["unusual_time", "high_amount"]
         }
@@ -634,7 +636,7 @@ async def create_comprehensive_test_transactions(customers: List[Customer]) -> L
         txn = {
             "transaction_id": f"TXN_INTERNATIONAL_{i+1:03d}",
             "transaction_type": "international",
-            "amount": random.uniform(100000, 300000),
+            "amount": to_decimal128(random.uniform(100000, 300000)),
             "currency": "USD",
             "sender": {
                 "name": "Global Supplies Ltd",
@@ -668,7 +670,7 @@ async def create_comprehensive_test_transactions(customers: List[Customer]) -> L
         txn = {
             "transaction_id": f"TXN_VELOCITY_{i+1:03d}",
             "transaction_type": "ach",
-            "amount": 25000.00,
+            "amount": to_decimal128(25000.00),
             "currency": "USD",
             "sender": {
                 "name": "High Risk Trader LLC",
@@ -688,7 +690,7 @@ async def create_comprehensive_test_transactions(customers: List[Customer]) -> L
             "embedding": [random.random() for _ in range(config.VECTOR_DIMENSION)],
             "ml_features": {
                 "velocity_1h": 3 if i >= 2 else i+1,
-                "total_amount_1h": (i+1) * 25000,
+                "total_amount_1h": to_decimal128((i+1) * 25000),
                 "rapid_succession": True
             },
             "risk_flags": ["velocity_pattern", "rapid_succession"]
@@ -706,7 +708,7 @@ async def create_comprehensive_test_transactions(customers: List[Customer]) -> L
         txn = {
             "transaction_id": f"TXN_REVIEW_{i+1:03d}",
             "transaction_type": "wire_transfer",
-            "amount": random.uniform(30000, 80000),
+            "amount": to_decimal128(random.uniform(30000, 80000)),
             "currency": "USD",
             "sender": {
                 "name": "Manufacturing Corp",

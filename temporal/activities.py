@@ -3,7 +3,7 @@
 import random
 import asyncio
 import uuid
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from datetime import datetime, timedelta, timezone
 from temporalio import activity
 
@@ -33,6 +33,7 @@ from database.schemas import (
     NotificationStatus
 )
 from ai.bedrock_client import bedrock_client
+from ai.embedding_client import embedding_client
 from ai.prompts import create_transaction_analysis_prompt, create_risk_assessment_prompt
 from services.risk_engine import RiskEngine
 from services.rule_engine import RuleEngine
@@ -43,6 +44,9 @@ from temporal.shared import (
 )
 from utils.logger import transaction_logger, logger
 from utils.config import config
+from utils.decimal_utils import to_decimal128, from_decimal128, decimal_to_float
+from utils.temporal_serialization import prepare_activity_result
+from decimal import Decimal
 
 class TransactionActivities:
     """Activities for transaction processing."""
@@ -54,7 +58,10 @@ class TransactionActivities:
             # Create or get accounts for both parties
             # Determine initial balance based on transaction amount for demo
             # Ensure accounts have enough funds for larger transactions
-            initial_balance = max(500000.0, transaction_details.amount * 5)
+            # Convert amount from string to Decimal for calculations
+            amount_decimal = Decimal(str(transaction_details.amount))
+            initial_balance = max(Decimal('500000'), amount_decimal * 5)
+            activity.logger.info(f"Amount: {transaction_details.amount}, Decimal: {amount_decimal}, Initial balance: {initial_balance}")
 
             sender_account = AccountRepository.get_or_create_account_sync(
                 account_number=transaction_details.sender.get("account_number"),
@@ -71,25 +78,25 @@ class TransactionActivities:
             # Check sufficient funds
             has_funds, available_balance = AccountRepository.check_sufficient_funds_sync(
                 sender_account.account_number,
-                transaction_details.amount
+                amount_decimal
             )
             
             if not has_funds:
                 transaction_logger.log_insufficient_funds(
                     account_number=sender_account.account_number,
                     transaction_id=transaction_details.transaction_id,
-                    requested_amount=transaction_details.amount,
+                    requested_amount=float(amount_decimal),
                     available_balance=available_balance
                 )
                 raise InsufficientFundsError(
                     f"Insufficient funds: Available ${available_balance:.2f}, "
-                    f"Requested ${transaction_details.amount:.2f}"
+                    f"Requested ${float(amount_decimal):.2f}"
                 )
             
             # Place hold on funds
             hold_id = AccountRepository.place_hold_sync(
                 account_number=sender_account.account_number,
-                amount=transaction_details.amount,
+                amount=amount_decimal,
                 transaction_id=transaction_details.transaction_id,
                 reason="Transaction processing"
             )
@@ -98,19 +105,19 @@ class TransactionActivities:
                 transaction_id=transaction_details.transaction_id,
                 event="FUNDS_VALIDATION",
                 details={
-                    "sender_balance": sender_account.balance,
-                    "amount": transaction_details.amount,
+                    "sender_balance": str(sender_account.balance),  # Convert to string for JSON
+                    "amount": str(transaction_details.amount),  # Already a string, but ensure it
                     "hold_id": hold_id,
                     "status": "funds_held"
                 }
             )
             
-            return {
+            return prepare_activity_result({
                 "validation_status": "success",
                 "hold_id": hold_id,
                 "sender_balance": sender_account.balance,
                 "recipient_balance": recipient_account.balance
-            }
+            })
             
         except (InsufficientFundsError, AccountNotFoundError) as e:
             activity.logger.error(f"Funds validation failed: {e}")
@@ -138,12 +145,12 @@ class TransactionActivities:
                 customer_history = TransactionRepository.get_customer_history_sync(customer_id)
             
             # Build transaction dict for rule evaluation
+            # Convert amount string to float for rule evaluation
+            amount_value = float(Decimal(str(transaction_details.amount)))
             transaction_dict = {
                 "transaction_id": transaction_details.transaction_id,
                 "transaction_type": transaction_details.transaction_type,
-                "amount": transaction_details.amount
-
-,
+                "amount": amount_value,
                 "currency": transaction_details.currency,
                 "sender": transaction_details.sender,
                 "recipient": transaction_details.recipient,
@@ -159,15 +166,15 @@ class TransactionActivities:
             risk_flags.extend(rule_results["risk_flags"])
             
             # Additional risk flag checks
-            if transaction_details.amount > 50000:
+            if amount_value > 50000:
                 risk_flags.append("high_amount")
 
             # Check for structuring pattern (amounts just under $5000 threshold)
-            if 4900 <= transaction_details.amount < 5000:
+            if 4900 <= amount_value < 5000:
                 risk_flags.append("structuring_pattern")
                 risk_flags.append("suspicious_amount")
                 activity.logger.warning(
-                    f"Potential structuring detected: Amount ${transaction_details.amount} "
+                    f"Potential structuring detected: Amount ${amount_value} "
                     f"just under $5000 reporting threshold"
                 )
 
@@ -237,7 +244,7 @@ class TransactionActivities:
                 f"with {len(risk_flags)} risk flags and {rule_results['rule_count']} rules triggered"
             )
             
-            return enriched_data
+            return prepare_activity_result(enriched_data)
             
         except Exception as e:
             activity.logger.error(f"Error enriching transaction: {e}")
@@ -274,8 +281,16 @@ class TransactionActivities:
             # Calculate metrics
             velocity_1h = len(transactions_1h)
             velocity_24h = len(transactions_24h)
-            total_amount_1h = sum(t.get("amount", 0) for t in transactions_1h)
-            total_amount_24h = sum(t.get("amount", 0) for t in transactions_24h)
+            # Convert Decimal128 to float for sum operations
+            # Handle missing or None amounts by providing 0 as default
+            total_amount_1h = sum(
+                decimal_to_float(t.get("amount")) if t.get("amount") is not None else 0.0
+                for t in transactions_1h
+            )
+            total_amount_24h = sum(
+                decimal_to_float(t.get("amount")) if t.get("amount") is not None else 0.0
+                for t in transactions_24h
+            )
 
             # Calculate time since last transaction
             time_since_last = None
@@ -382,7 +397,14 @@ class TransactionActivities:
                 f"level={assessment.risk_level}, edd_required={requires_edd}"
             )
             
-            return assessment
+            # Convert dataclass to dict and sanitize
+            return prepare_activity_result({
+                "risk_score": assessment.risk_score,
+                "risk_level": assessment.risk_level,
+                "risk_factors": assessment.risk_factors,
+                "requires_enhanced_diligence": assessment.requires_enhanced_diligence,
+                "compliance_checks": assessment.compliance_checks
+            })
             
         except Exception as e:
             activity.logger.error(f"Error in risk assessment: {e}")
@@ -400,27 +422,31 @@ class TransactionActivities:
         try:
             transaction = enriched_data["transaction"]
 
-            # Try to generate embedding, but don't fail if Bedrock is unavailable
+            # Try to generate embedding using Voyage finance-2 with Cohere fallback
             embedding = None
+            embedding_model = None
             try:
-                # Generate embedding for current transaction
-                embedding_text = f"""
-                Transaction Type: {transaction['transaction_type']}
-                Amount: {transaction['amount']} {transaction.get('currency', 'USD')}
-                Sender Country: {transaction['sender'].get('country', 'Unknown')}
-                Recipient Country: {transaction['recipient'].get('country', 'Unknown')}
-                Risk Flags: {' '.join(enriched_data.get('risk_flags', []))}
-                """
+                # Prepare transaction text for embedding
+                embedding_text = embedding_client.prepare_transaction_text(
+                    transaction, enriched_data
+                )
 
-                # Get embedding from Bedrock
-                embedding = await bedrock_client.get_embedding(embedding_text)
+                # Get embedding using dual provider strategy
+                embedding_result = await embedding_client.get_embedding(embedding_text)
+                embedding = embedding_result.embedding
+                embedding_model = embedding_result.model
 
                 # Store embedding for this transaction
                 TransactionRepository.store_embedding_sync(
                     transaction['transaction_id'],
                     embedding,
-                    "cohere"
+                    embedding_model
                 )
+
+                activity.logger.info(
+                    f"Generated {embedding_result.dimensions}D embedding using {embedding_model}"
+                )
+
             except Exception as embed_error:
                 activity.logger.warning(f"Could not generate embedding: {embed_error}")
                 # Continue with traditional search only
@@ -443,11 +469,11 @@ class TransactionActivities:
                 f"(from {len(similar_cases)} candidates)"
             )
             
-            return filtered_cases[:5]  # Return top 5
+            return prepare_activity_result(filtered_cases[:5])  # Return top 5
             
         except Exception as e:
             activity.logger.error(f"Error finding similar transactions: {e}")
-            return []
+            return prepare_activity_result([])
     
     @activity.defn
     async def ai_decision_analysis(
@@ -787,11 +813,13 @@ class TransactionActivities:
         transaction_id: str,
         sender_account: str,
         recipient_account: str,
-        amount: float,
+        amount: Union[float, str],  # Accept both float and string
         hold_id: str
     ) -> bool:
         """Execute the actual fund transfer using ACID transactions."""
         try:
+            # Convert amount to float if it's a string
+            amount_value = float(amount) if isinstance(amount, str) else amount
             # Release the hold first
             AccountRepository.release_hold_sync(hold_id)
             
@@ -799,11 +827,11 @@ class TransactionActivities:
             result = AccountRepository.execute_transfer_with_acid(
                 sender_account=sender_account,
                 recipient_account=recipient_account,
-                amount=amount,
+                amount=amount_value,
                 transaction_id=transaction_id,
                 description=f"Transfer for transaction {transaction_id}"
             )
-            
+
             if result:
                 transaction_logger.log_transaction(
                     transaction_id=transaction_id,
@@ -811,7 +839,7 @@ class TransactionActivities:
                     details={
                         "sender": sender_account,
                         "recipient": recipient_account,
-                        "amount": amount,
+                        "amount": amount_value,
                         "status": "success"
                     }
                 )

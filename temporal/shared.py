@@ -1,8 +1,9 @@
 """Shared constants and data models for Temporal workflows."""
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
+from decimal import Decimal
 
 # Task Queue name
 TRANSACTION_PROCESSING_TASK_QUEUE = "transaction-processing-queue"
@@ -12,7 +13,7 @@ class TransactionDetails:
     """Extended transaction details for processing."""
     transaction_id: str
     transaction_type: str  # Changed from TransactionType enum to str for serialization
-    amount: float
+    amount: Union[float, str]  # Accept float or string for Decimal conversion
     currency: str
     sender: Dict[str, Any]
     recipient: Dict[str, Any]
@@ -25,17 +26,17 @@ class ProcessingResult:
     """Result of transaction processing."""
     success: bool
     decision: str  # Changed to str for better serialization
-    confidence: float
+    confidence: Union[float, str]
     message: str
     decision_id: Optional[str] = None
-    risk_score: Optional[float] = None
+    risk_score: Optional[Union[float, str]] = None
     processing_time_ms: Optional[int] = None
     workflow_id: Optional[str] = None
 
 @dataclass
 class RiskAssessment:
     """Risk assessment results."""
-    risk_score: float
+    risk_score: Union[float, str]
     risk_level: str
     risk_factors: List[str]
     requires_enhanced_diligence: bool

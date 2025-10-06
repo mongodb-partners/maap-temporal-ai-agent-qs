@@ -1,13 +1,16 @@
 """Account repository with ACID transaction support."""
 
-from typing import Dict, Optional, List, Any, Tuple
+from typing import Dict, Optional, List, Any, Tuple, Union
 from datetime import datetime, timezone, timedelta
 from pymongo import MongoClient, errors
 from pymongo.client_session import ClientSession
+from bson import Decimal128
+from decimal import Decimal
 from database.account_schemas import Account, BalanceHold, BalanceUpdate, TransactionJournal
 from database.connection import db, get_sync_db
 from utils.config import config
 from utils.logger import transaction_logger, logger
+from utils.decimal_utils import to_decimal128, from_decimal128, add_money, subtract_money
 import uuid
 
 class InsufficientFundsError(Exception):
@@ -22,7 +25,11 @@ class AccountRepository:
     """Repository for account operations with ACID support."""
     
     @staticmethod
-    def get_or_create_account_sync(account_number: str, customer_name: str, initial_balance: float = 10000.0) -> Account:
+    def get_or_create_account_sync(
+        account_number: str,
+        customer_name: str,
+        initial_balance: Union[float, Decimal, Decimal128] = 10000.0
+    ) -> Account:
         """Get or create an account."""
         db_sync = get_sync_db()
         
@@ -30,51 +37,53 @@ class AccountRepository:
         if existing:
             return Account(**existing)
         
-        # Create new account with initial balance
+        # Create new account with initial balance as Decimal128
         account = Account(
             account_number=account_number,
             customer_id=f"CUST_{uuid.uuid4().hex[:8].upper()}",
             customer_name=customer_name,
-            balance=initial_balance,
-            available_balance=initial_balance,
+            balance=to_decimal128(initial_balance),
+            available_balance=to_decimal128(initial_balance),
             kyc_verified=True  # For demo purposes
         )
         
         db_sync[config.ACCOUNTS_COLLECTION].insert_one(account.model_dump())
-        logger.info(f"Created new account {account_number} with balance ${initial_balance:.2f}")
+        logger.info(f"Created new account {account_number} with balance ${float(from_decimal128(initial_balance)):.2f}")
         
         return account
     
     @staticmethod
-    def check_sufficient_funds_sync(account_number: str, amount: float) -> Tuple[bool, float]:
+    def check_sufficient_funds_sync(account_number: str, amount: Union[float, Decimal, Decimal128, str]) -> Tuple[bool, float]:
         """Check if account has sufficient funds."""
         db_sync = get_sync_db()
-        
+
         account = db_sync[config.ACCOUNTS_COLLECTION].find_one({"account_number": account_number})
         if not account:
             raise AccountNotFoundError(f"Account {account_number} not found")
-        
-        available = account.get("available_balance", 0)
-        overdraft_limit = account.get("overdraft_limit", 0)
-        
+
+        # Convert to Decimal for comparison
+        available = from_decimal128(account.get("available_balance", 0))
+        overdraft_limit = from_decimal128(account.get("overdraft_limit", 0))
+        amount_decimal = from_decimal128(amount)
+
         # Check if amount can be covered including overdraft
-        has_funds = available + overdraft_limit >= amount
+        has_funds = available + overdraft_limit >= amount_decimal
         
         if not has_funds:
             transaction_logger.log_insufficient_funds(
                 account_number=account_number,
                 transaction_id="CHECK",
-                requested_amount=amount,
-                available_balance=available
+                requested_amount=float(amount_decimal),
+                available_balance=float(available)
             )
-        
-        return has_funds, available
+
+        return has_funds, float(available)
     
     @staticmethod
     def execute_transfer_with_acid(
         sender_account: str,
         recipient_account: str,
-        amount: float,
+        amount: Union[float, Decimal, Decimal128, str],
         transaction_id: str,
         description: str = "Transfer"
     ) -> bool:
@@ -91,7 +100,7 @@ class AccountRepository:
             details={
                 "from": sender_account,
                 "to": recipient_account,
-                "amount": amount,
+                "amount": float(from_decimal128(amount)),  # Log as float for readability
                 "transaction_id": transaction_id
             }
         )
@@ -114,10 +123,12 @@ class AccountRepository:
                         raise AccountNotFoundError(f"Sender account {sender_account} not found")
                     
                     # 2. Check sufficient funds
-                    if sender["available_balance"] < amount:
+                    sender_available = from_decimal128(sender["available_balance"])
+                    amount_decimal = from_decimal128(amount)
+                    if sender_available < amount_decimal:
                         raise InsufficientFundsError(
-                            f"Insufficient funds: Available ${sender['available_balance']:.2f}, "
-                            f"Requested ${amount:.2f}"
+                            f"Insufficient funds: Available ${float(sender_available):.2f}, "
+                            f"Requested ${float(amount_decimal):.2f}"
                         )
                     
                     # 3. Get recipient account
@@ -129,8 +140,14 @@ class AccountRepository:
                         raise AccountNotFoundError(f"Recipient account {recipient_account} not found")
                     
                     # 4. Update sender balance (debit)
-                    new_sender_balance = sender["balance"] - amount
-                    new_sender_available = sender["available_balance"] - amount
+                    try:
+                        new_sender_balance = subtract_money(sender["balance"], amount)
+                        new_sender_available = subtract_money(sender["available_balance"], amount)
+                    except Exception as e:
+                        logger.error(f"Error in subtract_money: {e}")
+                        logger.error(f"sender['balance'] type: {type(sender['balance'])}")
+                        logger.error(f"amount type: {type(amount)}")
+                        raise
                     
                     accounts_collection.update_one(
                         {"account_number": sender_account},
@@ -143,7 +160,7 @@ class AccountRepository:
                             },
                             "$inc": {
                                 "transaction_count": 1,
-                                "total_withdrawals": amount
+                                "total_withdrawals": float(from_decimal128(amount))  # MongoDB $inc needs float
                             }
                         },
                         session=session
@@ -154,8 +171,8 @@ class AccountRepository:
                         account_number=sender_account,
                         transaction_id=transaction_id,
                         operation="debit",
-                        amount=amount,
-                        previous_balance=sender["balance"],
+                        amount=to_decimal128(amount),
+                        previous_balance=sender["balance"],  # Already Decimal128 from DB
                         new_balance=new_sender_balance,
                         session_id=session_id
                     )
@@ -165,8 +182,8 @@ class AccountRepository:
                     )
                     
                     # 5. Update recipient balance (credit)
-                    new_recipient_balance = recipient["balance"] + amount
-                    new_recipient_available = recipient["available_balance"] + amount
+                    new_recipient_balance = add_money(recipient["balance"], amount)
+                    new_recipient_available = add_money(recipient["available_balance"], amount)
                     
                     accounts_collection.update_one(
                         {"account_number": recipient_account},
@@ -179,7 +196,7 @@ class AccountRepository:
                             },
                             "$inc": {
                                 "transaction_count": 1,
-                                "total_deposits": amount
+                                "total_deposits": float(from_decimal128(amount))  # MongoDB $inc needs float
                             }
                         },
                         session=session
@@ -190,8 +207,8 @@ class AccountRepository:
                         account_number=recipient_account,
                         transaction_id=transaction_id,
                         operation="credit",
-                        amount=amount,
-                        previous_balance=recipient["balance"],
+                        amount=to_decimal128(amount),
+                        previous_balance=recipient["balance"],  # Already Decimal128 from DB
                         new_balance=new_recipient_balance,
                         session_id=session_id
                     )
@@ -204,9 +221,9 @@ class AccountRepository:
                     journal_entry = TransactionJournal(
                         transaction_id=transaction_id,
                         debit_account=sender_account,
-                        debit_amount=amount,
+                        debit_amount=to_decimal128(amount),
                         credit_account=recipient_account,
-                        credit_amount=amount,
+                        credit_amount=to_decimal128(amount),
                         description=description,
                         status="completed",
                         session_id=session_id,
@@ -286,7 +303,7 @@ class AccountRepository:
     @staticmethod
     def place_hold_sync(
         account_number: str,
-        amount: float,
+        amount: Union[float, Decimal, Decimal128, str],
         transaction_id: str,
         reason: str = "Transaction processing",
         duration_hours: int = 24
@@ -299,14 +316,17 @@ class AccountRepository:
         if not account:
             raise AccountNotFoundError(f"Account {account_number} not found")
         
-        if account["available_balance"] < amount:
+        # Convert to Decimal for comparison
+        available_decimal = from_decimal128(account["available_balance"])
+        amount_decimal = from_decimal128(amount)
+        if available_decimal < amount_decimal:
             raise InsufficientFundsError(f"Insufficient available balance for hold")
         
-        # Create hold
+        # Create hold with Decimal128 amount
         hold = BalanceHold(
             account_number=account_number,
             transaction_id=transaction_id,
-            amount=amount,
+            amount=to_decimal128(amount),
             reason=reason,
             expires_at=datetime.now(timezone.utc) + timedelta(hours=duration_hours)
         )
@@ -315,7 +335,7 @@ class AccountRepository:
         db_sync[config.ACCOUNTS_COLLECTION].update_one(
             {"account_number": account_number},
             {
-                "$inc": {"available_balance": -amount},
+                "$inc": {"available_balance": -float(amount_decimal)},  # MongoDB $inc needs float
                 "$push": {"holds": hold.model_dump()}
             }
         )
@@ -323,7 +343,7 @@ class AccountRepository:
         # Store hold record
         db_sync[config.HOLDS_COLLECTION].insert_one(hold.model_dump())
         
-        logger.info(f"Placed hold {hold.hold_id} for ${amount:.2f} on account {account_number}")
+        logger.info(f"Placed hold {hold.hold_id} for ${float(amount_decimal):.2f} on account {account_number}")
         
         return hold.hold_id
     
@@ -349,15 +369,18 @@ class AccountRepository:
         )
         
         # Update account available balance
+        # Convert Decimal128 to float for MongoDB $inc operation and formatting
+        from utils.decimal_utils import from_decimal128
+        amount_float = float(from_decimal128(hold["amount"]))
+
         db_sync[config.ACCOUNTS_COLLECTION].update_one(
             {"account_number": hold["account_number"]},
             {
-                "$inc": {"available_balance": hold["amount"]},
+                "$inc": {"available_balance": amount_float},
                 "$pull": {"holds": {"hold_id": hold_id}}
             }
         )
-        
-        logger.info(f"Released hold {hold_id} for ${hold['amount']:.2f} on account {hold['account_number']}")
+        logger.info(f"Released hold {hold_id} for ${amount_float:.2f} on account {hold['account_number']}")
         
         return True
     

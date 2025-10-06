@@ -5,7 +5,14 @@ import sys
 from datetime import datetime
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
+from bson import Decimal128
+
+def to_float_safe(value: Union[float, int, str, Decimal128]) -> float:
+    """Convert value to float, handling Decimal128."""
+    if isinstance(value, Decimal128):
+        return float(value.to_decimal())
+    return float(value)
 
 class TransactionLogger:
     """Centralized logging for Transaction Processing System."""
@@ -86,7 +93,10 @@ class TransactionLogger:
         
         # Log to main logger
         log_method = getattr(self.logger, level.lower())
-        log_method(f"Transaction {transaction_id}: {event} - {json.dumps(details)}")
+        # Sanitize details for JSON serialization
+        from utils.temporal_serialization import sanitize_for_json
+        sanitized_details = sanitize_for_json(details)
+        log_method(f"Transaction {transaction_id}: {event} - {json.dumps(sanitized_details)}")
         
         # Log to audit trail
         if hasattr(self, 'audit_logger'):
@@ -128,10 +138,10 @@ class TransactionLogger:
             "amount": amount,
             "old_balance": old_balance,
             "new_balance": new_balance,
-            "balance_change": new_balance - old_balance
+            "balance_change": to_float_safe(new_balance) - to_float_safe(old_balance)
         }
         
-        self.logger.info(f"Balance update for {account_number}: {operation} ${amount:.2f} (${old_balance:.2f} -> ${new_balance:.2f})")
+        self.logger.info(f"Balance update for {account_number}: {operation} ${to_float_safe(amount):.2f} (${to_float_safe(old_balance):.2f} -> ${to_float_safe(new_balance):.2f})")
         
         if hasattr(self, 'audit_logger'):
             self.audit_logger.info(json.dumps(log_entry))

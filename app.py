@@ -12,6 +12,7 @@ from scripts.advanced_scenarios import AdvancedScenarios
 from database.connection import get_sync_db
 from database.repositories import HumanReviewRepository, TransactionRepository
 from utils.config import config
+from utils.decimal_utils import from_decimal128
 
 # Page configuration
 st.set_page_config(
@@ -393,9 +394,11 @@ with tabs[2]:  # Scenario Results
                     st.markdown("**Transactions:**")
                     for txn in result['transactions']:
                         if txn['status'] == 'submitted':
-                            st.success(f"✅ ${txn['amount']:,.2f}")
+                            amount_value = float(from_decimal128(txn.get('amount', 0)))
+                            st.success(f"✅ ${amount_value:,.2f}")
                         else:
-                            st.error(f"❌ ${txn.get('amount', 0):,.2f}")
+                            amount_value = float(from_decimal128(txn.get('amount', 0)))
+                            st.error(f"❌ ${amount_value:,.2f}")
                 
                 # Check actual results
                 if result['workflow_ids']:
@@ -407,11 +410,15 @@ with tabs[2]:  # Scenario Results
                             txn_id = "-".join(parts[2:])
                             decision_data = asyncio.run(get_decision(txn_id))
                             if decision_data:
+                                # Ensure Risk Score is always a string for consistent dataframe types
+                                risk_score = decision_data.get("risk_score")
+                                risk_score_str = f"{risk_score:.1f}" if risk_score is not None else "N/A"
+
                                 results_data.append({
                                     "Transaction": txn_id[:30],
                                     "Decision": decision_data.get("decision", "pending"),
                                     "Confidence": f"{decision_data.get('confidence', 0):.1f}%",
-                                    "Risk Score": decision_data.get("risk_score", "N/A")
+                                    "Risk Score": risk_score_str
                                 })
                     
                     if results_data:
@@ -465,7 +472,8 @@ with tabs[3]:  # Human Review
                     with col1:
                         st.markdown("#### Transaction Details")
                         st.write(f"**Type:** {transaction.get('transaction_type', 'N/A')}")
-                        st.write(f"**Amount:** ${transaction.get('amount', 0):,.2f} {transaction.get('currency', 'USD')}")
+                        amount_value = float(from_decimal128(transaction.get('amount', 0)))
+                        st.write(f"**Amount:** ${amount_value:,.2f} {transaction.get('currency', 'USD')}")
                         st.write(f"**Sender:** {transaction.get('sender', {}).get('name', 'N/A')}")
                         st.write(f"**Recipient:** {transaction.get('recipient', {}).get('name', 'N/A')}")
                         st.write(f"**Status:** {transaction.get('status', 'pending')}")

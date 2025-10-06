@@ -1,9 +1,11 @@
 """MongoDB schemas."""
 
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from pydantic import BaseModel, Field, validator
 from enum import Enum
+from bson import Decimal128
+from decimal import Decimal
 import uuid
 
 # Enums
@@ -106,13 +108,15 @@ class Customer(BaseModel):
 
 # Transaction Schema with Vector Support
 class Transaction(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+
     transaction_id: str = Field(default_factory=generate_transaction_id)
     created_at: datetime = Field(default_factory=get_current_time)
     updated_at: datetime = Field(default_factory=get_current_time)
     
     # Core Transaction Data
     transaction_type: TransactionType
-    amount: float = Field(..., gt=0, le=10000000)
+    amount: Union[Decimal128, Decimal, float] = Field(...)
     currency: str = Field(default="USD")
     
     # Parties
@@ -131,7 +135,7 @@ class Transaction(BaseModel):
     ml_features: Dict[str, Any] = Field(default_factory=dict)
     
     # Vector Embedding for similarity search
-    embedding: Optional[List[float]] = None
+    embedding: Optional[List[float]] = None  # Keep as float for vector operations
     embedding_model: Optional[str] = None
     
     # Compliance
@@ -227,14 +231,16 @@ class Notification(BaseModel):
 
 # Transaction Decision Schema
 class TransactionDecision(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+
     decision_id: str = Field(default_factory=generate_decision_id)
     transaction_id: str
     created_at: datetime = Field(default_factory=get_current_time)
     
     # Decision Details
     decision: DecisionType
-    confidence_score: float = Field(..., ge=0, le=100)
-    risk_score: float = Field(..., ge=0, le=100)
+    confidence_score: Union[Decimal128, Decimal, float] = Field(...)
+    risk_score: Union[Decimal128, Decimal, float] = Field(...)
     
     # AI Model Information
     model_version: str = "claude-3-sonnet-bedrock"
@@ -274,10 +280,12 @@ class AuditEvent(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
 
 class SystemMetric(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+
     metric_id: str = Field(default_factory=generate_metric_id)
     timestamp: datetime = Field(default_factory=get_current_time)
     metric_type: str
     metric_name: str
-    value: float
+    value: Union[Decimal128, Decimal, float]
     unit: str
     dimensions: Dict[str, Any] = Field(default_factory=dict)

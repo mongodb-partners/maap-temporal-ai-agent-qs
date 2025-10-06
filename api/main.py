@@ -17,9 +17,11 @@ from api.models import (
 from database.connection import connect_to_mongo, close_mongo_connection, db
 from database.schemas import Transaction, TransactionStatus
 from database.repositories import TransactionRepository, DecisionRepository
+from utils.decimal_utils import to_decimal128, decimal_to_float
 from temporal.workflows import TransactionProcessingWorkflow
 from temporal.shared import TransactionDetails, TRANSACTION_PROCESSING_TASK_QUEUE
 from utils.config import config
+from ai.embedding_client import embedding_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -60,10 +62,10 @@ async def shutdown_event():
 async def process_transaction(transaction_req: TransactionRequest):
     """Submit a new transaction for processing."""
     try:
-        # Create transaction record
+        # Create transaction record with Decimal128 for amount
         transaction = Transaction(
             transaction_type=transaction_req.transaction_type,
-            amount=transaction_req.amount,
+            amount=to_decimal128(transaction_req.amount),
             currency=transaction_req.currency,
             sender=transaction_req.sender,
             recipient=transaction_req.recipient,
@@ -81,7 +83,7 @@ async def process_transaction(transaction_req: TransactionRequest):
         transaction_details = TransactionDetails(
             transaction_id=transaction_id,
             transaction_type=transaction_type_value,  # Pass as string
-            amount=transaction.amount,
+            amount=str(transaction.amount),  # Convert Decimal128 to string for Temporal
             currency=transaction.currency,
             sender=transaction.sender,
             recipient=transaction.recipient,
@@ -185,7 +187,9 @@ async def get_metrics():
         ]
         type_stats = await db.database[config.TRANSACTIONS_COLLECTION].aggregate(pipeline).to_list(None)
         transactions_by_type = {stat['_id']: stat['count'] for stat in type_stats}
-        total_amount = sum(stat['total_amount'] for stat in type_stats)
+        # Handle Decimal128 values in sum
+        from utils.decimal_utils import from_decimal128
+        total_amount = sum(from_decimal128(stat.get('total_amount', 0)) for stat in type_stats)
         
         # Get decision breakdown
         decision_pipeline = [
@@ -231,9 +235,17 @@ async def get_metrics():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
+    embedding_health = embedding_client.health_check()
+
     return {
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc),
         "mongodb": "connected" if db.client else "disconnected",
-        "temporal": "connected" if temporal_client else "disconnected"
+        "temporal": "connected" if temporal_client else "disconnected",
+        "embedding": {
+            "primary_model": embedding_health["primary_model"],
+            "voyage_available": embedding_health["voyage_available"],
+            "cohere_available": embedding_health["cohere_available"],
+            "available_models": embedding_health["available_models"]
+        }
     }

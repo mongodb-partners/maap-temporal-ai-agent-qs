@@ -103,7 +103,8 @@ graph LR
 - **FastAPI Backend** - REST API for transaction submission
 - **Temporal Worker** - Durable workflow execution engine
 - **MongoDB Atlas** - Document store with vector search capabilities
-- **AWS Bedrock** - Claude for analysis, Cohere for embeddings
+- **AWS Bedrock** - Claude for analysis, Cohere for fallback embeddings
+- **Voyage AI** - Finance-optimized embeddings (primary embedding provider)
 - **Streamlit Dashboard** - Real-time monitoring and review interface
 
 ### Integration Points

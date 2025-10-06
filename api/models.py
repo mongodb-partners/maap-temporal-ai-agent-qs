@@ -1,13 +1,14 @@
 """Pydantic models for API."""
 
-from pydantic import BaseModel, Field
-from typing import Dict, Optional, List
+from pydantic import BaseModel, Field, field_validator
+from typing import Dict, Optional, List, Union
 from datetime import datetime
+from decimal import Decimal
 from database.schemas import TransactionType, TransactionStatus, DecisionType
 
 class TransactionRequest(BaseModel):
     transaction_type: TransactionType
-    amount: float = Field(..., gt=0, le=10000000)
+    amount: Union[float, str] = Field(...)  # Accept float or string for decimal
     currency: str = Field(default="USD")
     sender: Dict[str, str] = Field(..., example={
         "name": "John Doe",
@@ -24,6 +25,15 @@ class TransactionRequest(BaseModel):
     description: Optional[str] = None
     metadata: Optional[Dict] = Field(default={})
 
+    @field_validator('amount')
+    def validate_amount(cls, v):
+        """Ensure amount can be converted to Decimal."""
+        try:
+            Decimal(str(v))
+            return v
+        except:
+            raise ValueError('Amount must be a valid decimal number')
+
 class TransactionResponse(BaseModel):
     transaction_id: str
     status: TransactionStatus
@@ -33,8 +43,8 @@ class TransactionResponse(BaseModel):
 class DecisionResponse(BaseModel):
     transaction_id: str
     decision: DecisionType
-    confidence: float
-    risk_score: float
+    confidence: Union[float, str]
+    risk_score: Union[float, str]
     reasoning: str
     processing_time_ms: int
     risk_factors: List[str]
@@ -44,5 +54,5 @@ class MetricsResponse(BaseModel):
     transactions_by_type: Dict[str, int]
     decisions_breakdown: Dict[str, int]
     average_processing_time_ms: float
-    average_confidence: float
-    total_amount_processed: float
+    average_confidence: Union[float, str]
+    total_amount_processed: Union[float, str]

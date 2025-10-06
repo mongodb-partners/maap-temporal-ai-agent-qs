@@ -23,6 +23,11 @@ class Config:
     
     # AI Model Configuration
     BEDROCK_MODEL_VERSION = os.getenv("BEDROCK_MODEL_VERSION", "us.anthropic.claude-opus-4-1-20250805-v1:0")
+
+    # Embedding Configuration
+    VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
+    VOYAGE_MODEL = "voyage-finance-2"
+    COHERE_MODEL = "cohere.embed-english-v3"
     
     # Collections
     CUSTOMERS_COLLECTION = "customers"
