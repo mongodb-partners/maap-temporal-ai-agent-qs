@@ -87,10 +87,13 @@ cp .env.example .env
 graph LR
     A[Transaction API] --> B[Temporal Workflow]
     B --> C[MongoDB Atlas]
-    B --> D[AWS Bedrock AI]
+    B --> D{AI Provider}
+    D -->|Option 2| D1[AWS Bedrock]
+    D -->|Option 1| D2[Groq]
     C --> E[Vector Search]
     C --> F[Graph Analysis]
-    D --> G[Fraud Detection]
+    D1 --> G[Fraud Detection]
+    D2 --> G[Fraud Detection]
     G --> H{Decision}
     H -->|Approved| I[Process Transaction]
     H -->|Review| J[Human Queue]
@@ -103,8 +106,9 @@ graph LR
 - **FastAPI Backend** - REST API for transaction submission
 - **Temporal Worker** - Durable workflow execution engine
 - **MongoDB Atlas** - Document store with vector search capabilities
-- **AWS Bedrock** - Claude for analysis, Cohere for fallback embeddings
+- **Groq** - LLM provider for transaction analysis
 - **Voyage AI** - Finance-optimized embeddings (primary embedding provider)
+- **AWS Bedrock** - Claude for analysis, Cohere for embeddings (fallback provider) 
 - **Streamlit Dashboard** - Real-time monitoring and review interface
 
 ### Integration Points

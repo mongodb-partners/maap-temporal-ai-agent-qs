@@ -240,7 +240,7 @@ with st.sidebar:
         st.rerun()
 
 # Main content area
-tabs = st.tabs(["📊 Dashboard", "🔄 Active Workflows", "🧪 Scenario Results", "👤 Human Review", "🔍 Search Methods Demo", "⚙️ Settings"])
+tabs = st.tabs(["📊 Dashboard", "🔄 Active Workflows", "🧪 Scenario Results", "👤 Guided Review", "🔍 Search Methods Demo", "⚙️ Settings"])
 
 with tabs[0]:  # Dashboard
     if st.session_state.metrics:
@@ -428,8 +428,8 @@ with tabs[2]:  # Scenario Results
         st.info("No scenario results yet. Run a scenario from the sidebar to see results!")
 
 with tabs[3]:  # Human Review
-    st.markdown("### 👤 Human Review Queue")
-    st.markdown("Review transactions that require human intervention")
+    st.markdown("### 👤 Expert Oversight Queue")
+    st.markdown("Review AI-flagged transactions for expert validation")
     
     # Get pending reviews from database
     db = get_sync_db()
@@ -1214,6 +1214,7 @@ with tabs[5]:  # Settings
             "Temporal Server": config.TEMPORAL_HOST,
             "AWS Region": config.AWS_REGION,
             "Bedrock Model": config.BEDROCK_MODEL_VERSION,
+            "Groq Model": config.GROQ_MODEL_ID,
             "Task Queue": config.TEMPORAL_TASK_QUEUE
         })
 
@@ -1222,6 +1223,6 @@ st.divider()
 st.markdown("""
 <div style='text-align: center'>
     <p>Powered by <b>MongoDB Atlas</b> 🍃 and <b>Temporal Workflows</b> ⚙️</p>
-    <p>AI Analysis by <b>AWS Bedrock</b> (Claude & Cohere) 🤖</p>
+    <p>AI Analysis by <b>AWS Bedrock / Groq </b> (Claude / OpenAI & VoyageAI / Cohere) 🤖</p>
 </div>
 """, unsafe_allow_html=True)

@@ -243,7 +243,7 @@ class TransactionDecision(BaseModel):
     risk_score: Union[Decimal128, Decimal, float] = Field(...)
     
     # AI Model Information
-    model_version: str = "claude-3-sonnet-bedrock"
+    model_version: str = "openai/gpt-oss-120b"
     
     # Processing Performance
     processing_time_ms: int

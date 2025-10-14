@@ -22,7 +22,14 @@ class Config:
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
     
     # AI Model Configuration
+    #AWS
     BEDROCK_MODEL_VERSION = os.getenv("BEDROCK_MODEL_VERSION", "us.anthropic.claude-opus-4-1-20250805-v1:0")
+
+    #Groq
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    GROQ_MODEL_ID = os.getenv("GROQ_MODEL_ID", "openai/gpt-oss-120b")
+
+    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")  # Options: "groq", "bedrock"
 
     # Embedding Configuration
     VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
