@@ -31,9 +31,17 @@ graph TB
     end
 
     subgraph "AI Services"
+        AI_PROVIDER{LLM Provider}
+        GROQ[Groq]
+        EMBEDDINGS_PROVIDER{Embeddings Provider}
         BEDROCK[AWS Bedrock]
+        
+        VOYAGE[Voyage AI]
+        VOYAGE_EMBED[Voyage<br/>Embeddings]
         CLAUDE[Claude Opus<br/>Decision Analysis]
         COHERE[Cohere<br/>Embeddings]
+        LLM_OpenAI[OpenAI<br/>Via Groq]
+        
     end
 
     UI --> FASTAPI
@@ -42,9 +50,16 @@ graph TB
     TEMPORAL --> WORKER
     WORKER --> WORKFLOWS
     WORKFLOWS --> MONGODB
-    WORKFLOWS --> BEDROCK
+    WORKFLOWS --> AI_PROVIDER
+    WORKFLOWS --> EMBEDDINGS_PROVIDER
+    AI_PROVIDER -->|Primary| GROQ
+    AI_PROVIDER -->|Fallback| BEDROCK
+    EMBEDDINGS_PROVIDER -->|Primary| VOYAGE
+    EMBEDDINGS_PROVIDER -->|Fallback| BEDROCK
     BEDROCK --> CLAUDE
     BEDROCK --> COHERE
+    GROQ --> LLM_OpenAI
+    VOYAGE --> VOYAGE_EMBED
     MONGODB --> VECTOR_INDEX
     MONGODB --> COLLECTIONS
 ```
